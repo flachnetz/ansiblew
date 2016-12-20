@@ -164,9 +164,6 @@ def main():
     workspace_venv = os.path.join(workspace, "venv")
     workspace_ansible = os.path.join(workspace, "ansible")
 
-    # create directories
-    mkdirs(workspace)
-
     # download and extract virtualenv
     install_virtualenv(workspace_venv, "https://github.com/pypa/virtualenv/archive/%s.tar.gz" % venv_version)
 
