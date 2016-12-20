@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import with_statement
 
+import hashlib
 import json
 import os
 import shutil
@@ -28,13 +29,32 @@ def log(*args):
 
 
 def load_config():
+    filename = os.path.join(os.path.dirname(sys.argv[0]), "ansiblew.json")
+    if not os.path.exists(filename):
+        die("Could not find config file 'ansiblew.json'")
+
     try:
-        config_file = os.path.join(os.path.dirname(sys.argv[0]), "ansiblew.json")
-        with open(config_file, "rb") as fp:
-            return json.load(fp)
+        with open(filename, "rb") as fp:
+            content = fp.read()
+
+        config = json.loads(content)
+
+        # create a canonicalized hash
+        h = hashlib.md5()
+        h.update(json.dumps(config, sort_keys=True))
+
+        return config, h.hexdigest()
 
     except OSError:
         die("Could not load config file 'ansiblew.json'")
+
+
+def find_workspace():
+    workspace = os.path.expanduser("~/.ansiblew")
+    if "~" in workspace:
+        workspace = "/tmp/ansiblew"
+
+    return workspace
 
 
 def mkdirs(path):
@@ -109,7 +129,7 @@ def install_virtualenv(target, url):
 
 
 @atomically
-def install_ansible(target, virtualenv_binary, ansible_version):
+def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     log("Create virtualenv in", target)
     check_call(virtualenv_binary, target)
 
@@ -120,20 +140,27 @@ def install_ansible(target, virtualenv_binary, ansible_version):
     log("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
 
+    if extra_packages:
+        log("Install extra packages")
+        check_call(pip, "install", *extra_packages)
+
     log("Verify that the installed ansible executes")
     ansible = os.path.join(target, "bin", "ansible")
     check_call(ansible, "--version")
 
 
 def main():
-    config = load_config()
+    config, config_hash = load_config()
 
+    extra_requirements = config.get("requirements", [])
     ansible_version = config.get("ansible_version", DEFAULT_ANSIBLE_VERSION)
     venv_version = config.get("virtualenv_version", DEFAULT_ANSIBLE_VERSION)
-    log("Run with virtualenv v%s, ansible v%s" % (venv_version, ansible_version))
+
+    log("Run with virtualenv v%s, ansible v%s, packages=%s" % (
+        venv_version, ansible_version, ", ".join(extra_requirements)))
 
     # where to put files
-    workspace = os.path.join("/tmp/ansiblew/venv%s-ansible%s" % (venv_version, ansible_version))
+    workspace = os.path.join(find_workspace(), ansible_version, config_hash)
     workspace_venv = os.path.join(workspace, "venv")
     workspace_ansible = os.path.join(workspace, "ansible")
 
@@ -143,8 +170,9 @@ def main():
     # download and extract virtualenv
     install_virtualenv(workspace_venv, "https://github.com/pypa/virtualenv/archive/%s.tar.gz" % venv_version)
 
-    # install ansible
-    install_ansible(workspace_ansible, os.path.join(workspace_venv, "virtualenv.py"), ansible_version)
+    # install ansible in a virtualenv
+    virtualenv = os.path.join(workspace_venv, "virtualenv.py")
+    install_ansible(workspace_ansible, virtualenv, ansible_version, extra_requirements)
 
     # run ansible, propagate error up
     ansible = os.path.join(workspace_ansible, "bin", "ansible-playbook")
