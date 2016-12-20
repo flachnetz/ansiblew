@@ -149,7 +149,19 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     check_call(ansible, "--version")
 
 
+def update_wrapper():
+    """Update the wrapper in place."""
+    content = download("https://raw.githubusercontent.com/flachnetz/ansiblew/master/ansiblew")
+
+    log("Replacing script at %s with new version" % sys.argv[0])
+    with open(sys.argv[0], "wb") as fp:
+        fp.write(content)
+
+
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "update":
+        return update_wrapper()
+
     config, config_hash = load_config()
 
     extra_requirements = config.get("requirements", [])

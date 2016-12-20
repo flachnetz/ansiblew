@@ -29,3 +29,6 @@ on third-party modules.
 }
 ```
 
+## Update
+
+You can update the wrapper by passing `update` as the only parameter: `./ansiblew update`
