@@ -154,7 +154,7 @@ def main():
 
     extra_requirements = config.get("requirements", [])
     ansible_version = config.get("ansible_version", DEFAULT_ANSIBLE_VERSION)
-    venv_version = config.get("virtualenv_version", DEFAULT_ANSIBLE_VERSION)
+    venv_version = config.get("virtualenv_version", DEFAULT_VIRTUALENV_VERSION)
 
     log("Run with virtualenv v%s, ansible v%s, packages=%s" % (
         venv_version, ansible_version, ", ".join(extra_requirements)))
