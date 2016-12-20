@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import with_statement
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib2
+from contextlib import closing
+
+DEFAULT_ANSIBLE_VERSION = "2.2.0.0-1"
+DEFAULT_VIRTUALENV_VERSION = "15.1.0"
+
+
+def die(*args):
+    """Prints the given messages and exits the application with an error."""
+    print(*args, file=sys.stderr)
+    sys.exit(1)
+
+
+def log(*args):
+    print(*args)
+
+
+def load_config():
+    try:
+        config_file = os.path.join(os.path.dirname(sys.argv[0]), "ansiblew.json")
+        with open(config_file, "rb") as fp:
+            return json.load(fp)
+
+    except OSError:
+        die("Could not load config file 'ansiblew.json'")
+
+
+def mkdirs(path):
+    if not os.path.exists(path):
+        log("Make directory at", path)
+        os.makedirs(path)
+
+
+def download(url):
+    log("Download", url)
+    with closing(urllib2.urlopen(url)) as fp:
+        return fp.read()
+
+
+def check_call(*args, **kwargs):
+    fail_on_error = kwargs.pop("fail_on_error", True)
+
+    # check if we need to send input to the process
+    stdin = kwargs.pop("stdin", None)
+    if stdin is not None:
+        kwargs["stdin"] = subprocess.PIPE
+
+    log("Executing command", " ".join(args))
+    proc = subprocess.Popen(args, **kwargs)
+
+    # wait for the process to finish
+    proc.communicate(stdin)
+
+    # check if the process finished with an error
+    retcode = proc.poll()
+    if retcode and fail_on_error:
+        die("Command %s failed with return code %d" % (args[0], retcode))
+
+    return retcode
+
+
+def atomically(func):
+    def wrapper(target, *args, **kwargs):
+        if os.path.exists(target):
+            log("Previous target found in", target)
+            return
+
+        temp_target = target + ".tmp%d" % int(1000 * time.time())
+        try:
+            mkdirs(temp_target)
+
+            # call real code
+            func(temp_target, *args, **kwargs)
+
+            try:
+                # atomic rename, might fail if someone else created the new directory concurrently
+                os.rename(temp_target, target)
+            except OSError:
+                pass
+
+        finally:
+            if os.path.exists(temp_target):
+                log("Cleanup temporary directory at", temp_target)
+                shutil.rmtree(temp_target, ignore_errors=True)
+
+        # double check if directory exists now.
+        if not os.path.exists(target):
+            die("Renaming of temporary directory to %s failed" % target)
+
+    return wrapper
+
+
+@atomically
+def install_virtualenv(target, url):
+    tar_content = download(url)
+    check_call("tar", "xz", "--strip-components=1", stdin=tar_content, cwd=target)
+
+
+@atomically
+def install_ansible(target, virtualenv_binary, ansible_version):
+    log("Create virtualenv in", target)
+    check_call(virtualenv_binary, target)
+
+    log("Install ansible in", target)
+    pip = os.path.join(target, "bin", "pip")
+    check_call(pip, "install", "https://github.com/ansible/ansible/archive/v%s.tar.gz" % ansible_version)
+
+    log("Make venv relocatable to move it into its final place")
+    check_call(virtualenv_binary, "--relocatable", target)
+
+    log("Verify that the installed ansible executes")
+    ansible = os.path.join(target, "bin", "ansible")
+    check_call(ansible, "--version")
+
+
+def main():
+    config = load_config()
+
+    ansible_version = config.get("ansible_version", DEFAULT_ANSIBLE_VERSION)
+    venv_version = config.get("virtualenv_version", DEFAULT_ANSIBLE_VERSION)
+    log("Run with virtualenv v%s, ansible v%s" % (venv_version, ansible_version))
+
+    # where to put files
+    workspace = os.path.join("/tmp/ansiblew/venv%s-ansible%s" % (venv_version, ansible_version))
+    workspace_venv = os.path.join(workspace, "venv")
+    workspace_ansible = os.path.join(workspace, "ansible")
+
+    # create directories
+    mkdirs(workspace)
+
+    # download and extract virtualenv
+    install_virtualenv(workspace_venv, "https://github.com/pypa/virtualenv/archive/%s.tar.gz" % venv_version)
+
+    # install ansible
+    install_ansible(workspace_ansible, os.path.join(workspace_venv, "virtualenv.py"), ansible_version)
+
+    # run ansible, propagate error up
+    ansible = os.path.join(workspace_ansible, "bin", "ansible-playbook")
+    return check_call(ansible, *sys.argv[1:], fail_on_error=False)
+
+
+if __name__ == '__main__':
+    sys.exit(main() or 0)
