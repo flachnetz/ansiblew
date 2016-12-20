@@ -22,7 +22,7 @@ You can also specify a list of extra python packages to install. This
 might be useful, if your ansible playbook includes modules depending
 on third-party modules.
 
-```
+```json
 {
   "ansible_version": "2.2.0.0-1",
   "requirements": ["requests==2.12.4"]
