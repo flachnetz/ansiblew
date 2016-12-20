@@ -12,7 +12,7 @@ run `./ansiblew web.yaml`.
 Place a copy of the `ansiblew` script and the `ansiblew.json` configuration file
 into a directory. You can simplify the installation by running:
 ```
-curl https://raw.githubusercontent.com/flachnetz/ansiblew/master/get.sh | sh
+curl -sf https://raw.githubusercontent.com/flachnetz/ansiblew/master/get.sh | sh
 ```
 
 ## Configuration
