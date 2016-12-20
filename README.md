@@ -14,3 +14,18 @@ into a directory. You can simplify the installation by running:
 ```
 curl https://raw.githubusercontent.com/flachnetz/ansiblew/master/get.sh | sh
 ```
+
+## Configuration
+
+Edit `ansiblew.json` to configure the ansible version you want to use.
+You can also specify a list of extra python packages to install. This
+might be useful, if your ansible playbook includes modules depending
+on third-party modules.
+
+```
+{
+  "ansible_version": "2.2.0.0-1",
+  "requirements": ["requests==2.12.4"]
+}
+```
+
