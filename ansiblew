@@ -14,7 +14,7 @@ import time
 import urllib2
 from contextlib import closing
 
-DEFAULT_ANSIBLE_VERSION = "2.2.0.0-1"
+DEFAULT_ANSIBLE_VERSION = "2.2.0.0"
 DEFAULT_VIRTUALENV_VERSION = "15.1.0"
 
 
@@ -135,7 +135,7 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
 
     log("Install ansible in", target)
     pip = os.path.join(target, "bin", "pip")
-    check_call(pip, "install", "git+https://github.com/ansible/ansible.git@v%s#egg=ansible" % ansible_version)
+    check_call(pip, "install", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version)
 
     log("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
