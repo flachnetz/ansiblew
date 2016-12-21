@@ -135,7 +135,7 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
 
     log("Install ansible in", target)
     pip = os.path.join(target, "bin", "pip")
-    check_call(pip, "install", "https://github.com/ansible/ansible/archive/v%s.tar.gz" % ansible_version)
+    check_call(pip, "install", "git+https://github.com/ansible/ansible.git@v%s#egg=ansible" % ansible_version)
 
     log("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
