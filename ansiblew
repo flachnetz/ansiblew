@@ -71,24 +71,42 @@ def download(url):
 
 def check_call(*args, **kwargs):
     fail_on_error = kwargs.pop("fail_on_error", True)
+    capture_output = kwargs.pop("capture_output", False)
 
     # check if we need to send input to the process
     stdin = kwargs.pop("stdin", None)
     if stdin is not None:
         kwargs["stdin"] = subprocess.PIPE
 
+    if capture_output:
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.STDOUT
+
+    if capture_output and stdin:
+        raise ValueError("stdin can not be used with capture_output")
+
     log("Executing command", " ".join(args))
     proc = subprocess.Popen(args, **kwargs)
 
-    # wait for the process to finish
-    proc.communicate(stdin)
+    output = ""
+    if capture_output:
+        lines = []
+        for line in proc.stdout:
+            lines.append(line)
+            sys.stdout.write(line)
+
+        output = "".join(lines)
+
+    else:
+        # wait for the process to finish
+        proc.communicate(stdin)
 
     # check if the process finished with an error
     retcode = proc.poll()
     if retcode and fail_on_error:
         die("Command %s failed with return code %d" % (args[0], retcode))
 
-    return retcode
+    return retcode, output
 
 
 def atomically(func):
@@ -128,6 +146,24 @@ def install_virtualenv(target, url):
     check_call("tar", "xz", "--strip-components=1", stdin=tar_content, cwd=target)
 
 
+def analyze_install_error_output(output):
+    """Analyzes the error output, prints a message and dies."""
+    packages = []
+    if "include <pyconfig.h>" in output:
+        packages.append("python2-devel")
+
+    if "include <ffi.h>" in output:
+        packages.append("libffi-devel")
+
+    if "include <openssl" in output:
+        packages.append("openssl-devel")
+
+    if packages:
+        die("\n\n[ERROR] Looks like packages are missing. Try: yum install %s" % " ".join(packages))
+    else:
+        die("\n\n[ERROR] Ansible could not be installed for some reason. Check log above.")
+
+
 @atomically
 def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     log("Create virtualenv in", target)
@@ -135,7 +171,12 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
 
     log("Install ansible in", target)
     pip = os.path.join(target, "bin", "pip")
-    check_call(pip, "install", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version)
+    rc, output = check_call(pip, "install", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version,
+                            capture_output=True, fail_on_error=False)
+
+    if rc:
+        raise analyze_install_error_output(output)
+
 
     log("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
@@ -185,7 +226,8 @@ def main():
 
     # run ansible, propagate error up
     ansible = os.path.join(workspace_ansible, "bin", "ansible-playbook")
-    return check_call(ansible, *sys.argv[1:], fail_on_error=False)
+    rc, _ = check_call(ansible, *sys.argv[1:], fail_on_error=False)
+    return rc
 
 
 if __name__ == '__main__':
