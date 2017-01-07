@@ -17,6 +17,9 @@ from contextlib import closing
 DEFAULT_ANSIBLE_VERSION = "2.2.0.0"
 DEFAULT_VIRTUALENV_VERSION = "15.1.0"
 
+VERBOSE_LOGGING = os.getenv("ANSIBLEW_VERBOSE") in ("1", "true")
+ANSIBLE_COMMAND = os.getenv("ANSIBLEW_COMMAND", "ansible-playbook")
+
 
 def die(*args):
     """Prints the given messages and exits the application with an error."""
@@ -24,8 +27,13 @@ def die(*args):
     sys.exit(1)
 
 
-def log(*args):
+def info(*args):
     print(*args)
+
+
+def debug(*args):
+    if VERBOSE_LOGGING:
+        print(*args)
 
 
 def load_config():
@@ -59,12 +67,12 @@ def find_workspace():
 
 def mkdirs(path):
     if not os.path.exists(path):
-        log("Make directory at", path)
+        debug("Make directory at", path)
         os.makedirs(path)
 
 
 def download(url):
-    log("Download", url)
+    info("Download", url)
     with closing(urllib2.urlopen(url)) as fp:
         return fp.read()
 
@@ -85,7 +93,7 @@ def check_call(*args, **kwargs):
     if capture_output and stdin:
         raise ValueError("stdin can not be used with capture_output")
 
-    log("Executing command", " ".join(args))
+    debug("Executing command", " ".join(args))
     proc = subprocess.Popen(args, **kwargs)
 
     output = ""
@@ -112,7 +120,7 @@ def check_call(*args, **kwargs):
 def atomically(func):
     def wrapper(target, *args, **kwargs):
         if os.path.exists(target):
-            log("Previous target found in", target)
+            debug("Previous target found in", target)
             return
 
         temp_target = target + ".tmp%d" % int(1000 * time.time())
@@ -130,7 +138,7 @@ def atomically(func):
 
         finally:
             if os.path.exists(temp_target):
-                log("Cleanup temporary directory at", temp_target)
+                debug("Cleanup temporary directory at", temp_target)
                 shutil.rmtree(temp_target, ignore_errors=True)
 
         # double check if directory exists now.
@@ -166,10 +174,10 @@ def analyze_install_error_output(output):
 
 @atomically
 def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
-    log("Create virtualenv in", target)
+    info("Create virtualenv in", target)
     check_call(virtualenv_binary, target)
 
-    log("Install ansible in", target)
+    info("Install ansible in", target)
     pip = os.path.join(target, "bin", "pip")
     rc, output = check_call(pip, "install", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version,
                             capture_output=True, fail_on_error=False)
@@ -177,15 +185,14 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     if rc:
         raise analyze_install_error_output(output)
 
-
-    log("Make venv relocatable to move it into its final place")
+    info("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
 
     if extra_packages:
-        log("Install extra packages")
+        info("Install extra packages")
         check_call(pip, "install", *extra_packages)
 
-    log("Verify that the installed ansible executes")
+    info("Verify that the installed ansible executes")
     ansible = os.path.join(target, "bin", "ansible")
     check_call(ansible, "--version")
 
@@ -194,7 +201,7 @@ def update_wrapper():
     """Update the wrapper in place."""
     content = download("https://raw.githubusercontent.com/flachnetz/ansiblew/master/ansiblew")
 
-    log("Replacing script at %s with new version" % sys.argv[0])
+    info("Replacing script at %s with new version" % sys.argv[0])
     with open(sys.argv[0], "wb") as fp:
         fp.write(content)
 
@@ -209,7 +216,7 @@ def main():
     ansible_version = config.get("ansible_version", DEFAULT_ANSIBLE_VERSION)
     venv_version = config.get("virtualenv_version", DEFAULT_VIRTUALENV_VERSION)
 
-    log("Run with virtualenv v%s, ansible v%s, packages=%s" % (
+    debug("Run with virtualenv v%s, ansible v%s, packages=%s" % (
         venv_version, ansible_version, ", ".join(extra_requirements)))
 
     # where to put files
@@ -224,10 +231,9 @@ def main():
     virtualenv = os.path.join(workspace_venv, "virtualenv.py")
     install_ansible(workspace_ansible, virtualenv, ansible_version, extra_requirements)
 
-    # run ansible, propagate error up
-    ansible = os.path.join(workspace_ansible, "bin", "ansible-playbook")
-    rc, _ = check_call(ansible, *sys.argv[1:], fail_on_error=False)
-    return rc
+    # replace this process with the target process using os.exec
+    ansible = os.path.join(workspace_ansible, "bin", ANSIBLE_COMMAND)
+    os.execv(ansible, sys.argv)
 
 
 if __name__ == '__main__':

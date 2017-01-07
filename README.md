@@ -32,3 +32,19 @@ on third-party modules.
 ## Update
 
 You can update the wrapper by passing `update` as the only parameter: `./ansiblew update`
+
+## Environment variables
+
+Verbose logging can be enabled by setting the environment variable `ANSIBLEW_VERBOSE`
+to true. If you need to execute another ansible process, you can pass its name as 
+`ANSIBLEW_COMMAND`, which defaults to `ansible-playbook`. 
+
+For example, to execute an ad-hoc command with `ansible` directly, run
+```sh
+ANSIBLEW_COMMAND=ansible ./ansiblew -m shell -a 'df -h /'
+```
+
+To create an encrypted ansible-vault file, run
+```
+ANSIBLEW_COMMAND=ansible-vault ./ansiblew create secrets.vault
+```
