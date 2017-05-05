@@ -51,7 +51,7 @@ def load_config():
         h = hashlib.md5()
         h.update(json.dumps(config, sort_keys=True))
 
-        return config, h.hexdigest()
+        return config, h.hexdigest()[:8]
 
     except OSError:
         die("Could not load config file 'ansiblew.json'")
@@ -123,7 +123,7 @@ def atomically(func):
             debug("Previous target found in", target)
             return
 
-        temp_target = target + ".tmp%d" % int(1000 * time.time())
+        temp_target = target + ".%d" % (int(1000 * time.time()) % 10000)
         try:
             mkdirs(temp_target)
 
