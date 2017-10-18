@@ -7,6 +7,7 @@ from __future__ import with_statement
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -197,6 +198,17 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     ansible = os.path.join(target, "bin", "ansible")
     check_call(ansible, "--version")
 
+@atomically
+def install_vars_plugins(target):
+    info("Installing vars plugin to set ansible_python_interpreter.")
+    with open(target + "/interpreter.py", "wb") as fp:
+        fp.write(re.sub(r'^\s+[|] ', '', """
+            | class VarsModule(object):
+            |   def __init__(self, *args):
+            |     pass
+            |   def run(self, *args, **kwargs):
+            |     return {'ansible_python_interpreter': 'python'}
+            """, 0, re.MULTILINE))
 
 def update_wrapper():
     """Update the wrapper in place."""
@@ -231,6 +243,10 @@ def main():
     # install ansible in a virtualenv
     virtualenv = os.path.join(workspace_venv, "virtualenv.py")
     install_ansible(workspace_ansible, virtualenv, ansible_version, extra_requirements)
+
+    workspace_vars = os.path.join(workspace, "vars_plugins")
+    install_vars_plugins(workspace_vars)
+    os.putenv("ANSIBLE_VARS_PLUGINS", workspace_vars)
 
     # replace this process with the target process using os.exec
     ansible = os.path.join(workspace_ansible, "bin", ANSIBLE_COMMAND)
