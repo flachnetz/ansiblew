@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -15,8 +15,8 @@ import time
 import urllib2
 from contextlib import closing
 
-DEFAULT_ANSIBLE_VERSION = "2.2.0.0"
-DEFAULT_VIRTUALENV_VERSION = "15.1.0"
+DEFAULT_ANSIBLE_VERSION = "2.7.9"
+DEFAULT_VIRTUALENV_VERSION = "16.4.3"
 
 VERBOSE_LOGGING = os.getenv("ANSIBLEW_VERBOSE") in ("1", "true")
 ANSIBLE_COMMAND = os.getenv("ANSIBLEW_COMMAND", "ansible-playbook")
@@ -182,15 +182,16 @@ def install_ansible(target, virtualenv_binary, ansible_version, extra_packages):
     info("Install ansible in", target)
     python = os.path.join(target, "bin", "python")
     pip = os.path.join(target, "bin", "pip")
-    rc, output = check_call(python, pip, "install", "--upgrade", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version,
-                            capture_output=True, fail_on_error=False)
+    rc, output = check_call(
+        python, pip, "install", "--no-cache-dir", "--upgrade", "https://releases.ansible.com/ansible/ansible-%s.tar.gz" % ansible_version,
+        capture_output=True, fail_on_error=False)
 
     if rc:
         raise analyze_install_error_output(output)
 
     if extra_packages:
         info("Install extra packages")
-        check_call(python, pip, "install", "--upgrade", *extra_packages)
+        check_call(python, pip, "install", "--no-cache-dir", "--upgrade", *extra_packages)
 
     info("Make venv relocatable to move it into its final place")
     check_call(virtualenv_binary, "--relocatable", target)
