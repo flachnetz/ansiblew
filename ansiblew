@@ -20,6 +20,7 @@ DEFAULT_VIRTUALENV_VERSION = "16.4.3"
 
 VERBOSE_LOGGING = os.getenv("ANSIBLEW_VERBOSE") in ("1", "true")
 ANSIBLE_COMMAND = os.getenv("ANSIBLEW_COMMAND", "ansible-playbook")
+ANSIBLEW_CONFIG_FILE = os.getenv("ANSIBLEW_CONFIG_FILE", "ansiblew.json")
 
 
 def die(*args):
@@ -38,9 +39,9 @@ def debug(*args):
 
 
 def load_config():
-    filename = os.path.join(os.path.dirname(sys.argv[0]), "ansiblew.json")
+    filename = os.path.join(os.path.dirname(sys.argv[0]), ANSIBLEW_CONFIG_FILE)
     if not os.path.exists(filename):
-        die("Could not find config file 'ansiblew.json'")
+        die("Could not find config file '" + ANSIBLEW_CONFIG_FILE + "'")
 
     try:
         with open(filename, "rb") as fp:

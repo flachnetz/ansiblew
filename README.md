@@ -36,8 +36,8 @@ You can update the wrapper by passing `update` as the only parameter: `./ansible
 ## Environment variables
 
 Verbose logging can be enabled by setting the environment variable `ANSIBLEW_VERBOSE`
-to true. If you need to execute another ansible process, you can pass its name as 
-`ANSIBLEW_COMMAND`, which defaults to `ansible-playbook`. 
+to true. If you need to execute another ansible process, you can pass its name as
+`ANSIBLEW_COMMAND`, which defaults to `ansible-playbook`.
 
 For example, to execute an ad-hoc command with `ansible` directly, run
 ```sh
@@ -48,3 +48,4 @@ To create an encrypted ansible-vault file, run
 ```
 ANSIBLEW_COMMAND=ansible-vault ./ansiblew create secrets.vault
 ```
+If you want to provide a different ansiblew config file you can do it by setting the environment variable `ANSIBLEW_CONFIG_FILE`.
